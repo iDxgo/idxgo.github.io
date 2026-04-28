@@ -1,0 +1,223 @@
+---
+title: "Evolución Térmica Global y Nacional"
+subtitle: "¿En qué medida el calentamiento de México ha seguido el ritmo de la crisis climática global?"
+author: "Diego Arturo García Mondragón"
+date: "4 May 2026"
+format: html
+jupyter: python3
+---
+
+## Introducción
+
+El cambio climático no es un evento futuro, sino un proceso en curso. Este análisis compara la trayectoria térmica del planeta frente a la realidad de México, explorando cómo las tendencias globales se traducen en fenómenos locales extremos y alteran nuestros ciclos estacionales.
+
+
+```{python}
+#| echo: false
+
+import pandas as pd
+import plotly.express as px
+import matplotlib.pyplot as plt
+
+#Preprocesamiento
+df_global = pd.read_csv("Data/data_global_promedio.csv")
+
+df_mexico = pd.read_csv("Data/data_mexico.csv")
+
+df_mexico["PERIODO"] = pd.to_datetime(df_mexico["PERIODO"])
+df_mexico["Año"] = df_mexico["PERIODO"].dt.year
+df_mexico["Mes"] = df_mexico["PERIODO"].dt.month_name()
+
+df_mexico = df_mexico[df_mexico["Año"] <= 2025]
+
+df_nacional = df_mexico[df_mexico["CVE_ENT"] == 0].copy()
+df_estados = df_mexico[df_mexico["CVE_ENT"] != 0].copy()
+
+df_anual_media = df_estados.groupby(["Año", "ENTIDAD"])[["MEDIA"]].mean().reset_index()
+df_anual_maxima = df_estados.groupby(["Año", "ENTIDAD"])[["MAXIMA"]].max().reset_index()
+df_nacional_media = df_nacional.groupby("Año")["MEDIA"].mean().reset_index()
+
+min_temp_media = df_anual_media["MEDIA"].min()
+max_temp_media = df_anual_media["MEDIA"].max()
+
+min_temp_maxima = df_anual_maxima["MAXIMA"].min()
+max_temp_maxima = df_anual_maxima["MAXIMA"].max()
+
+meses_orden = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+```
+
+## Contexto Global
+
+La gráfica muestra un mapa interactivo que muestra la **temperatura media anual** por país y su evolución (1950-2024). Los tonos rojizos indican el avance del calentamiento sobre los continentes.
+
+```{python}
+#| echo: false
+#| fig-width: 20
+#Promedio Temperatura (Mundial)
+fig = px.choropleth(
+    df_global,
+    locations="iso_code",
+    color="mean_temperature",
+    hover_name="country",
+    animation_frame="year",
+    color_continuous_scale="RdYlBu_r",
+    range_color=[df_global["mean_temperature"].min(), df_global["mean_temperature"].max()],
+    title="Evolución de la Temperatura Media Global por País",
+    labels={"mean_temperature": "Temp. Media (°C)", "year": "Año", "iso_code": "Código ISO"}
+)
+
+fig.update_layout(
+    margin={"r":0,"t":50,"l":0,"b":0},
+    coloraxis_colorbar=dict(title="Temp (°C)"),
+    template="plotly_white"
+)
+
+fig.update_geos(
+    showcountries=True, 
+    countrycolor="LightGrey",
+    showcoastlines=True,
+    projection_type="natural earth"
+)
+```
+
+::: {.callout-note}
+## Nota
+*Se observa un incremento de aproximadamente **2°C** en diversas regiones respecto al inicio del registro.*
+:::
+
+## Tendencia Nacional
+Se muestra la evolución de la temperatura promedio en México en el periodo 1985-2025. Cada punto en la linea representa un año y la linea muestra como va fluctuando la temperatura en el país.
+
+```{python}
+#| echo: false
+#| fig-width: 20
+
+#Evolución temperatura promedio (México)
+frames = []
+for i in range(1, len(df_nacional_media) + 1):
+    temp_df = df_nacional_media.iloc[:i].copy()
+    temp_df["Frame"] = df_nacional_media.iloc[i-1]["Año"]
+    frames.append(temp_df)
+
+df_anim = pd.concat(frames)
+
+fig = px.line(
+    df_anim,
+    x="Año",
+    y="MEDIA",
+    animation_frame="Frame",
+    title="Evolución Histórica de la Temperatura Media Nacional",
+    labels={"MEDIA": "Temperatura Media (°C)", "Año": "Año"},
+    markers=True,
+    color_discrete_sequence=["red"]
+)
+
+fig.update_traces(line_color="red", line_width=3)
+
+y_min = df_nacional_media["MEDIA"].min() - 0.5
+y_max = df_nacional_media["MEDIA"].max() + 0.5
+x_min = df_nacional_media["Año"].min()
+x_max = df_nacional_media["Año"].max()
+
+fig.update_layout(
+    xaxis=dict(range=[x_min, x_max], title="Año", gridcolor="lightgrey"),
+    yaxis=dict(range=[y_min, y_max], title="Temperatura (°C)", gridcolor="lightgrey"),
+    template="plotly_white",
+    height=550
+)
+inicio = df_nacional_media.iloc[0]["MEDIA"]
+final = df_nacional_media.iloc[-1]["MEDIA"]
+diff = final - inicio
+
+fig.add_annotation(
+    xref="paper", yref="paper",
+    x=0.01, y=0.95,
+    text=f"Incremento total: {diff:.2f}°C",    
+    showarrow=False,
+    font=dict(size=12, color="red"),
+    align="left"
+)
+```
+
+::: {.callout-note}
+## Nota
+*Se confirma que México sigue el ritmo global, consolidando un aumento sostenido de aproximadamente **2°C** en su media nacional.*
+:::
+
+## Ranking de Temperaturas
+Se observa un gráfico de barras que representa el ranking de **temperaturas máximas** en el país. Aquí se identifican los estados de la república y cuál ha sido su temperatura más alta registrada por año.
+
+```{python}
+#| echo: False
+
+#Ranking Temperatura Máxima (México)
+fig = px.bar(
+    df_anual_maxima,
+    x="MAXIMA",
+    y="ENTIDAD",
+    animation_frame="Año",
+    orientation="h",
+    color="MAXIMA",
+    color_continuous_scale="YlOrRd",
+    range_x=[0, max_temp_maxima + 2],
+    title="Ranking de Temperatura Máxima por Estado en México",
+    labels={"MAXIMA": "Temperatura Media (°C)", "ENTIDAD": "Estado", "Año": "Año"}
+)
+
+fig.update_layout(
+    xaxis=dict(
+        title="Temperatura (°C)",
+        fixedrange=True
+    ),
+    yaxis={"categoryorder": "total ascending"},
+    
+    coloraxis=dict(
+        cmin=min_temp_maxima-2, 
+        cmax=max_temp_maxima+2,
+        colorbar=dict(title="Temp (°C)")
+    ),
+    height=750,
+    template="plotly_white",
+    margin={"l": 150}
+)
+
+```
+
+::: {.callout-warning}
+## Anomalía
+*El año 2024 destaca como una anomalía crítica, donde los picos de temperatura máxima revelan una de las olas de calor más severas en la historia del país.*
+:::
+
+## Estacionalidad del Calor
+Se muestra una matriz térmica que desglosa la temperatura por mes y año. Permite identificar cuándo se concentra el calor extremo.
+
+```{python}
+#| echo: False
+#Matriz Térmica Nacional (México)
+fig = px.imshow(
+    df_nacional.pivot(index="Año", columns="Mes", values="MEDIA")[meses_orden],
+    labels=dict(x="Mes", y="Año", color="Temp (°C)"),
+    x=meses_orden,
+    color_continuous_scale="RdYlBu_r",
+    title="Matriz Térmica Histórica de México (Nacional)"
+)
+
+fig.update_layout(height=600, template="plotly_white")
+```
+
+::: {.callout-important}
+## Dato Clave
+*Es evidente una intensificación en la "zona roja" entre mayo y agosto, donde las temperaturas críticas se han vuelto más frecuentes e intensas.*
+:::
+
+## Conclusión
+El análisis de los datos permite concluir que México ha seguido de la tendencia de la crisis climática global, además, las visualizaciones anteriores han permitido notar la aparición de extremos térmicos locales cada vez más agresivos. Los puntos claves que refuerzan lo anterior son:
+
+* Sincronía Global: El aumento de temperatura nacional coincide con el promedio mundial.
+* Récords de Anomalía: El año 2024 demostró que los picos máximos están rompiendo cualquier límite histórico.
+* Concentración Estacional: El calor extremo se ha vuelto estructural, dominando fijamente el periodo de mayo a septiembre.
+
+## Referencias:
+* *Temperaturas y Lluvias Mensuales en México (1985-2026)*. Datamx. (2026). <https://datamx.io/es/dataset/temperaturas-mensuales-en-mexico-1985-2025>
+* Lullo, L. (2026). *Global mean temperature by country (1950-2024)* [Base de datos]. Kaggle.<https://www.kaggle.com/datasets/lucalullo/global-mean-temperature-by-country-1950-2024>
